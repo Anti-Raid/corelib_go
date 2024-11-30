@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"go.std/bigint"
+	"github.com/Anti-Raid/corelib_go/bigint"
 )
 
 // Returns the extended data for a command

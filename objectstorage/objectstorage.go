@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"go.std/config"
+	"github.com/Anti-Raid/corelib_go/config"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"

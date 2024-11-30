@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"go.std/bigint"
+	"github.com/Anti-Raid/corelib_go/bigint"
 )
 
 // PermissionCheck represents the permissions needed to run a command.
