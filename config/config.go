@@ -79,10 +79,12 @@ type ObjectStorageConfig struct {
 }
 
 type BasePorts struct {
-	JobserverBaseAddr string `yaml:"jobserver_base_addr" default:"http://localhost" comment:"Jobserver Base Address" validate:"required"`
-	BotBaseAddr       string `yaml:"bot_base_addr" default:"http://localhost" comment:"Bot Base Address" validate:"required"`
-	JobserverBindAddr string `yaml:"jobserver_bind_addr" default:"127.0.0.1" comment:"Jobserver Bind Address" validate:"required"`
-	BotBindAddr       string `yaml:"bot_bind_addr" default:"127.0.0.1" comment:"Bot Bind Address" validate:"required"`
-	Jobserver         int    `yaml:"jobserver" default:"30000" comment:"Jobserver Base Port" validate:"required"`
-	Bot               int    `yaml:"bot" default:"20000" comment:"Bot Base Port" validate:"required"`
+	JobserverBaseAddr  string `yaml:"jobserver_base_addr" default:"http://localhost" comment:"Jobserver Base Address" validate:"required"`
+	BotBaseAddr        string `yaml:"bot_base_addr" default:"http://localhost" comment:"Bot Base Address" validate:"required"`
+	JobserverBindAddr  string `yaml:"jobserver_bind_addr" default:"127.0.0.1" comment:"Jobserver Bind Address" validate:"required"`
+	BotBindAddr        string `yaml:"bot_bind_addr" default:"127.0.0.1" comment:"Bot Bind Address" validate:"required"`
+	Jobserver          int    `yaml:"jobserver" default:"30000" comment:"Jobserver Base Port" validate:"required"`
+	Bot                int    `yaml:"bot" default:"20000" comment:"Bot Base Port" validate:"required"`
+	TemplateWorkerAddr string `yaml:"template_worker_addr" default:"http://localhost" comment:"Template Worker Address" validate:"required"`
+	TemplateWorkerPort int    `yaml:"template_worker_port" default:"60000" comment:"Template Worker Port" validate:"required"`
 }
