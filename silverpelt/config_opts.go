@@ -42,9 +42,6 @@ type CanonicalSettingsError struct {
 		Max     uint64 `json:"max"`
 		Current uint64 `json:"current"`
 	} `json:"MaximumCountReached,omitempty"`
-	PermissionError *struct {
-		Result PermissionResult `json:"result"`
-	} `json:"PermissionError,omitempty"`
 }
 
 type CanonicalColumnType struct {
