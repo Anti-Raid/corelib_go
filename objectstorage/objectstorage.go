@@ -70,17 +70,17 @@ func (o *ObjectStorage) createBucketIfNotExists(ctx context.Context) error {
 		return nil
 	}
 
-	exists, errBucketExists := o.minio.BucketExists(ctx, o.c.Path)
+	exists, err := o.minio.BucketExists(ctx, o.c.Path)
 
-	if errBucketExists != nil {
-		return errBucketExists
+	if err != nil {
+		return err
 	}
 
 	if exists {
 		return nil
 	}
 
-	err := o.minio.MakeBucket(ctx, o.c.Path, minio.MakeBucketOptions{})
+	err = o.minio.MakeBucket(ctx, o.c.Path, minio.MakeBucketOptions{})
 
 	if err != nil {
 		return fmt.Errorf("failed to create bucket: %v", err)
