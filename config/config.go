@@ -49,22 +49,6 @@ type Meta struct {
 	SandwichHttpApi      string `yaml:"sandwich_http_api" comment:"(optional) Sandwich HTTP API" default:"http://127.0.0.1:29334" validate:"required"`
 }
 
-type BotList struct {
-	Name       string         `yaml:"name" comment:"Bot List Name" validate:"required"`
-	APIUrl     string         `yaml:"api_url" comment:"API Url for the list" validate:"required"`
-	APIToken   string         `yaml:"api_token" comment:"API Token for the list" validate:"required"`
-	AuthFormat string         `yaml:"auth_format" comment:"Can be one of h#[header]/{token} or u#[token]={token} or b#[key]={token} (brackets means that anything can be substituted in)" validate:"required"`
-	PostStats  *BotListAction `yaml:"post_stats" comment:"Post Stats Action"`
-}
-
-type BotListAction struct {
-	Enabled    bool              `yaml:"enabled" comment:"Whether or not the action is enabled or not" validate:"required"`
-	Method     string            `yaml:"method" comment:"What HTTP method to use"`
-	Interval   int64             `yaml:"interval" comment:"What interval to send messages at"`
-	URLFormat  string            `yaml:"url_format" comment:"Must be u#{url}?[key1]={key2} (brackets means that anything can be substituted in)"`
-	DataFormat map[string]string `yaml:"data_format" comment:"Must be {key1}={key2} (brackets means that anything can be substituted in)"`
-}
-
 // Some data such as backups can get quite large.
 // These are stored on a S3-like bucket such as DigitalOcean spaces
 type ObjectStorageConfig struct {
