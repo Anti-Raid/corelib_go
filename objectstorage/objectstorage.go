@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -16,7 +15,6 @@ import (
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
-	"github.com/minio/minio-go/v7/pkg/signer"
 )
 
 // A simple abstraction for object storage
@@ -25,6 +23,9 @@ type ObjectStorage struct {
 
 	// If s3-like
 	minio *minio.Client
+
+	// if s3-like
+	cdnMinio *minio.Client
 }
 
 func New(c *config.ObjectStorageConfig) (o *ObjectStorage, err error) {
@@ -37,7 +38,15 @@ func New(c *config.ObjectStorageConfig) (o *ObjectStorage, err error) {
 		o.minio, err = minio.New(c.Endpoint, &minio.Options{
 			Creds:  credentials.NewStaticV4(c.AccessKey, c.SecretKey, ""),
 			Secure: c.Secure,
-			Region: "us-east-1",
+		})
+
+		if err != nil {
+			return nil, err
+		}
+
+		o.cdnMinio, err = minio.New(c.CdnEndpoint, &minio.Options{
+			Creds:  credentials.NewStaticV4(c.AccessKey, c.SecretKey, ""),
+			Secure: c.CdnSecure,
 		})
 
 		if err != nil {
@@ -54,61 +63,6 @@ func New(c *config.ObjectStorageConfig) (o *ObjectStorage, err error) {
 	}
 
 	return o, nil
-}
-
-func (o *ObjectStorage) manuallyCreateCdnPresignedUrlNoNetRequest(path string, expiry time.Duration) *url.URL {
-	// This is a workaround for the fact that presigning a URL requires a network request
-	// This is not ideal, but it works for now
-	// It is guaranteed to always succeed
-	expirySecs := int64(expiry.Seconds())
-
-	req := signer.PreSignV4(
-		http.Request{
-			Method: http.MethodGet,
-			URL: &url.URL{
-				Scheme: func() string {
-					if o.c.CdnSecure {
-						return "https"
-					}
-					return "http"
-				}(),
-				Host:    o.c.CdnEndpoint,
-				Path:    path,
-				RawPath: path,
-			},
-		},
-		o.c.AccessKey,
-		o.c.SecretKey,
-		"",
-		"us-east-1",
-		expirySecs,
-	)
-
-	return req.URL
-}
-
-func (o *ObjectStorage) createBucketIfNotExists(ctx context.Context) error {
-	if o.c.Type != "s3-like" {
-		return nil
-	}
-
-	exists, err := o.minio.BucketExists(ctx, o.c.Path)
-
-	if err != nil {
-		return err
-	}
-
-	if exists {
-		return nil
-	}
-
-	err = o.minio.MakeBucket(ctx, o.c.Path, minio.MakeBucketOptions{})
-
-	if err != nil {
-		return fmt.Errorf("failed to create bucket: %v", err)
-	}
-
-	return nil
 }
 
 // Saves a file to the object storage
@@ -137,17 +91,12 @@ func (o *ObjectStorage) Save(ctx context.Context, dir, filename string, data *by
 
 		return nil
 	case "s3-like":
-		err := o.createBucketIfNotExists(ctx)
-		if err != nil {
-			return err
-		}
-
 		p := minio.PutObjectOptions{}
 
 		if expiry != 0 {
 			p.Expires = time.Now().Add(expiry)
 		}
-		_, err = o.minio.PutObject(ctx, o.c.Path, dir+"/"+filename, data, int64(data.Len()), p)
+		_, err := o.minio.PutObject(ctx, o.c.Path, dir+"/"+filename, data, int64(data.Len()), p)
 
 		if err != nil {
 			return err
@@ -184,7 +133,11 @@ func (o *ObjectStorage) GetUrl(ctx context.Context, dir, filename string, urlExp
 			path = dir + "/" + filename
 		}
 
-		p := o.manuallyCreateCdnPresignedUrlNoNetRequest(path, urlExpiry)
+		p, err := o.cdnMinio.PresignedGetObject(ctx, o.c.Path, path, urlExpiry, nil)
+
+		if err != nil {
+			return nil, err
+		}
 
 		return p, nil
 	default:
