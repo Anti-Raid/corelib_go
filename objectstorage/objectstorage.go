@@ -65,6 +65,30 @@ func New(c *config.ObjectStorageConfig) (o *ObjectStorage, err error) {
 	return o, nil
 }
 
+func (o *ObjectStorage) createBucketIfNotExists(ctx context.Context) error {
+	if o.c.Type != "s3-like" {
+		return nil
+	}
+
+	exists, errBucketExists := o.minio.BucketExists(ctx, o.c.Path)
+
+	if errBucketExists != nil {
+		return errBucketExists
+	}
+
+	if exists {
+		return nil
+	}
+
+	err := o.minio.MakeBucket(ctx, o.c.Path, minio.MakeBucketOptions{})
+
+	if err != nil {
+		return fmt.Errorf("failed to create bucket: %v", err)
+	}
+
+	return nil
+}
+
 // Saves a file to the object storage
 //
 // Note that 'expiry' is not supported for local storage
@@ -91,12 +115,17 @@ func (o *ObjectStorage) Save(ctx context.Context, dir, filename string, data *by
 
 		return nil
 	case "s3-like":
+		err := o.createBucketIfNotExists(ctx)
+		if err != nil {
+			return err
+		}
+
 		p := minio.PutObjectOptions{}
 
 		if expiry != 0 {
 			p.Expires = time.Now().Add(expiry)
 		}
-		_, err := o.minio.PutObject(ctx, o.c.Path, dir+"/"+filename, data, int64(data.Len()), p)
+		_, err = o.minio.PutObject(ctx, o.c.Path, dir+"/"+filename, data, int64(data.Len()), p)
 
 		if err != nil {
 			return err
