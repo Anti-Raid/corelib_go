@@ -61,6 +61,7 @@ func (o *ObjectStorage) manuallyCreateCdnPresignedUrlNoNetRequest(path string, e
 	// This is not ideal, but it works for now
 	// It is guaranteed to always succeed
 	expirySecs := int64(expiry.Seconds())
+
 	req := signer.PreSignV4(
 		http.Request{
 			Method: http.MethodGet,
@@ -72,8 +73,8 @@ func (o *ObjectStorage) manuallyCreateCdnPresignedUrlNoNetRequest(path string, e
 					return "http"
 				}(),
 				Host:    o.c.CdnEndpoint,
-				Path:    "/" + path,
-				RawPath: "/" + path,
+				Path:    path,
+				RawPath: path,
 			},
 		},
 		o.c.AccessKey,
