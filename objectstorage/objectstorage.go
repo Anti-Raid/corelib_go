@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+	"github.com/minio/minio-go/v7/pkg/signer"
 )
 
 // A simple abstraction for object storage
@@ -23,9 +25,6 @@ type ObjectStorage struct {
 
 	// If s3-like
 	minio *minio.Client
-
-	// if s3-like
-	cdnMinio *minio.Client
 }
 
 func New(c *config.ObjectStorageConfig) (o *ObjectStorage, err error) {
@@ -38,15 +37,7 @@ func New(c *config.ObjectStorageConfig) (o *ObjectStorage, err error) {
 		o.minio, err = minio.New(c.Endpoint, &minio.Options{
 			Creds:  credentials.NewStaticV4(c.AccessKey, c.SecretKey, ""),
 			Secure: c.Secure,
-		})
-
-		if err != nil {
-			return nil, err
-		}
-
-		o.cdnMinio, err = minio.New(c.CdnEndpoint, &minio.Options{
-			Creds:  credentials.NewStaticV4(c.AccessKey, c.SecretKey, ""),
-			Secure: c.CdnSecure,
+			Region: "us-east-1",
 		})
 
 		if err != nil {
@@ -63,6 +54,36 @@ func New(c *config.ObjectStorageConfig) (o *ObjectStorage, err error) {
 	}
 
 	return o, nil
+}
+
+func (o *ObjectStorage) manuallyCreateCdnPresignedUrlNoNetRequest(path string, expiry time.Duration) *url.URL {
+	// This is a workaround for the fact that presigning a URL requires a network request
+	// This is not ideal, but it works for now
+	// It is guaranteed to always succeed
+	expirySecs := int64(expiry.Seconds())
+	req := signer.PreSignV4(
+		http.Request{
+			Method: http.MethodGet,
+			URL: &url.URL{
+				Scheme: func() string {
+					if o.c.CdnSecure {
+						return "https"
+					}
+					return "http"
+				}(),
+				Host:    o.c.CdnEndpoint,
+				Path:    "/" + path,
+				RawPath: "/" + path,
+			},
+		},
+		o.c.AccessKey,
+		o.c.SecretKey,
+		"",
+		"us-east-1",
+		expirySecs,
+	)
+
+	return req.URL
 }
 
 func (o *ObjectStorage) createBucketIfNotExists(ctx context.Context) error {
@@ -162,11 +183,7 @@ func (o *ObjectStorage) GetUrl(ctx context.Context, dir, filename string, urlExp
 			path = dir + "/" + filename
 		}
 
-		p, err := o.cdnMinio.PresignedGetObject(ctx, o.c.Path, path, urlExpiry, nil)
-
-		if err != nil {
-			return nil, err
-		}
+		p := o.manuallyCreateCdnPresignedUrlNoNetRequest(path, urlExpiry)
 
 		return p, nil
 	default:
