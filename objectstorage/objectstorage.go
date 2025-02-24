@@ -157,7 +157,7 @@ func (o *ObjectStorage) GetUrl(ctx context.Context, dir, filename string, urlExp
 		// The NGINX proxy layer will then swap the CDN endpoint for endpoint again in its X-Forwarded headers
 		if strings.HasPrefix(o.c.CdnEndpoint, "$DOCKER:") {
 			p.Scheme = "http"
-			p.Host = strings.SplitN(o.c.Endpoint, ":", 1)[0]
+			p.Host = strings.SplitN(o.c.CdnEndpoint, ":", 1)[0]
 		}
 
 		return p, nil
