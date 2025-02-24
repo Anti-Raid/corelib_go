@@ -14,11 +14,31 @@ import (
 	"time"
 
 	"github.com/Anti-Raid/corelib_go/config"
-	"github.com/infinitybotlist/eureka/proxy"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
+
+type CdnHostRewriter struct {
+	host string
+	next http.RoundTripper
+}
+
+// This is a hack to make the CDN work with the minio client
+func (rt *CdnHostRewriter) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Only overwrite if the request is GetBucketLocation
+	if req.Method != http.MethodGet || !strings.Contains(req.URL.String(), "?location") {
+		return rt.next.RoundTrip(req)
+	}
+
+	urlStr := strings.Replace(req.URL.String(), req.Host, rt.host, 1)
+	req.URL, _ = url.Parse(urlStr)
+
+	req.Host = rt.host
+	req.URL.Scheme = "http"
+
+	return rt.next.RoundTrip(req)
+}
 
 // A simple abstraction for object storage
 type ObjectStorage struct {
@@ -50,8 +70,10 @@ func New(c *config.ObjectStorageConfig) (o *ObjectStorage, err error) {
 		o.cdnMinio, err = minio.New(c.CdnEndpoint, &minio.Options{
 			Creds:  credentials.NewStaticV4(c.AccessKey, c.SecretKey, ""),
 			Secure: c.CdnSecure,
-			Transport: proxy.NewHostRewriter(strings.Replace(c.Endpoint, "http://", "", 1), http.DefaultTransport, func(s string) {
-			}),
+			Transport: &CdnHostRewriter{
+				host: c.CdnEndpoint,
+				next: http.DefaultTransport,
+			},
 		})
 
 		if err != nil {
