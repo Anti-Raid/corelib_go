@@ -6,39 +6,19 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/Anti-Raid/corelib_go/config"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 
+	awscredentials "github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
-
-type CdnHostRewriter struct {
-	host string
-	next http.RoundTripper
-}
-
-// This is a hack to make the CDN work with the minio client
-func (rt *CdnHostRewriter) RoundTrip(req *http.Request) (*http.Response, error) {
-	// Only overwrite if the request is GetBucketLocation
-	if req.Method != http.MethodGet || !strings.Contains(req.URL.String(), "?location") {
-		return rt.next.RoundTrip(req)
-	}
-
-	urlStr := strings.Replace(req.URL.String(), req.Host, rt.host, 1)
-	req.URL, _ = url.Parse(urlStr)
-
-	req.Host = rt.host
-	req.URL.Scheme = "http"
-
-	return rt.next.RoundTrip(req)
-}
 
 // A simple abstraction for object storage
 type ObjectStorage struct {
@@ -70,10 +50,6 @@ func New(c *config.ObjectStorageConfig) (o *ObjectStorage, err error) {
 		o.cdnMinio, err = minio.New(c.CdnEndpoint, &minio.Options{
 			Creds:  credentials.NewStaticV4(c.AccessKey, c.SecretKey, ""),
 			Secure: c.CdnSecure,
-			Transport: &CdnHostRewriter{
-				host: c.CdnEndpoint,
-				next: http.DefaultTransport,
-			},
 		})
 
 		if err != nil {
@@ -160,13 +136,27 @@ func (o *ObjectStorage) GetUrl(ctx context.Context, dir, filename string, urlExp
 			path = dir + "/" + filename
 		}
 
-		p, err := o.cdnMinio.PresignedGetObject(ctx, o.c.Path, path, urlExpiry, nil)
+		awsConfig := aws.NewConfig()
+		awsConfig.Region = "us-east-1"
+		awsConfig.BaseEndpoint = aws.String(o.c.CdnEndpoint)
+		s3client := s3.NewFromConfig(*awsConfig, func(opts *s3.Options) {
+			opts.Credentials = awscredentials.NewStaticCredentialsProvider(o.c.AccessKey, o.c.SecretKey, "")
+			opts.UsePathStyle = true
+		})
+
+		pc := s3.NewPresignClient(s3client)
+		req, err := pc.PresignGetObject(ctx, &s3.GetObjectInput{
+			Bucket: aws.String(o.c.Path),
+			Key:    aws.String(path),
+		}, func(opts *s3.PresignOptions) {
+			opts.Expires = urlExpiry
+		})
 
 		if err != nil {
 			return nil, err
 		}
 
-		return p, nil
+		return url.Parse(req.URL)
 	default:
 		return nil, fmt.Errorf("operation not supported for object storage type %s", o.c.Type)
 	}
