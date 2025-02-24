@@ -12,10 +12,7 @@ import (
 	"time"
 
 	"github.com/Anti-Raid/corelib_go/config"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 
-	awscredentials "github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
@@ -26,6 +23,9 @@ type ObjectStorage struct {
 
 	// If s3-like
 	minio *minio.Client
+
+	// if s3-like
+	cdnMinio *minio.Client
 }
 
 func New(c *config.ObjectStorageConfig) (o *ObjectStorage, err error) {
@@ -38,6 +38,15 @@ func New(c *config.ObjectStorageConfig) (o *ObjectStorage, err error) {
 		o.minio, err = minio.New(c.Endpoint, &minio.Options{
 			Creds:  credentials.NewStaticV4(c.AccessKey, c.SecretKey, ""),
 			Secure: c.Secure,
+		})
+
+		if err != nil {
+			return nil, err
+		}
+
+		o.cdnMinio, err = minio.New(c.CdnEndpoint, &minio.Options{
+			Creds:  credentials.NewStaticV4(c.AccessKey, c.SecretKey, ""),
+			Secure: c.CdnSecure,
 		})
 
 		if err != nil {
@@ -124,27 +133,13 @@ func (o *ObjectStorage) GetUrl(ctx context.Context, dir, filename string, urlExp
 			path = dir + "/" + filename
 		}
 
-		awsConfig := aws.NewConfig()
-		awsConfig.Region = "us-east-1"
-		awsConfig.BaseEndpoint = aws.String(o.c.CdnEndpoint)
-		s3client := s3.NewFromConfig(*awsConfig, func(opts *s3.Options) {
-			opts.Credentials = awscredentials.NewStaticCredentialsProvider(o.c.AccessKey, o.c.SecretKey, "")
-			opts.UsePathStyle = true
-		})
-
-		pc := s3.NewPresignClient(s3client)
-		req, err := pc.PresignGetObject(ctx, &s3.GetObjectInput{
-			Bucket: aws.String(o.c.Path),
-			Key:    aws.String(path),
-		}, func(opts *s3.PresignOptions) {
-			opts.Expires = urlExpiry
-		})
+		p, err := o.cdnMinio.PresignedGetObject(ctx, o.c.Path, path, urlExpiry, nil)
 
 		if err != nil {
 			return nil, err
 		}
 
-		return url.Parse(req.URL)
+		return p, nil
 	default:
 		return nil, fmt.Errorf("operation not supported for object storage type %s", o.c.Type)
 	}
