@@ -126,7 +126,7 @@ func (o *ObjectStorage) GetUrl(ctx context.Context, dir, filename string, urlExp
 
 		awsConfig := aws.NewConfig()
 		awsConfig.Region = "us-east-1"
-		awsConfig.BaseEndpoint = aws.String(o.c.CdnEndpoint)
+		awsConfig.BaseEndpoint = aws.String("http://" + o.c.CdnEndpoint)
 		s3client := s3.NewFromConfig(*awsConfig, func(opts *s3.Options) {
 			opts.Credentials = awscredentials.NewStaticCredentialsProvider(o.c.AccessKey, o.c.SecretKey, "")
 			opts.UsePathStyle = true
