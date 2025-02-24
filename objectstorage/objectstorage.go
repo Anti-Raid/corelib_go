@@ -26,9 +26,6 @@ type ObjectStorage struct {
 
 	// If s3-like
 	minio *minio.Client
-
-	// if s3-like
-	cdnMinio *minio.Client
 }
 
 func New(c *config.ObjectStorageConfig) (o *ObjectStorage, err error) {
@@ -41,15 +38,6 @@ func New(c *config.ObjectStorageConfig) (o *ObjectStorage, err error) {
 		o.minio, err = minio.New(c.Endpoint, &minio.Options{
 			Creds:  credentials.NewStaticV4(c.AccessKey, c.SecretKey, ""),
 			Secure: c.Secure,
-		})
-
-		if err != nil {
-			return nil, err
-		}
-
-		o.cdnMinio, err = minio.New(c.CdnEndpoint, &minio.Options{
-			Creds:  credentials.NewStaticV4(c.AccessKey, c.SecretKey, ""),
-			Secure: c.CdnSecure,
 		})
 
 		if err != nil {
