@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Anti-Raid/corelib_go/config"
@@ -44,13 +45,25 @@ func New(c *config.ObjectStorageConfig) (o *ObjectStorage, err error) {
 			return nil, err
 		}
 
-		o.cdnMinio, err = minio.New(c.CdnEndpoint, &minio.Options{
-			Creds:  credentials.NewStaticV4(c.AccessKey, c.SecretKey, ""),
-			Secure: c.CdnSecure,
-		})
+		if strings.HasPrefix(c.CdnEndpoint, "$DOCKER:") {
+			// Docker's a bit *special*
+			o.cdnMinio, err = minio.New(c.Endpoint, &minio.Options{
+				Creds:  credentials.NewStaticV4(c.AccessKey, c.SecretKey, ""),
+				Secure: c.Secure,
+			})
 
-		if err != nil {
-			return nil, err
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			o.cdnMinio, err = minio.New(c.CdnEndpoint, &minio.Options{
+				Creds:  credentials.NewStaticV4(c.AccessKey, c.SecretKey, ""),
+				Secure: c.CdnSecure,
+			})
+
+			if err != nil {
+				return nil, err
+			}
 		}
 	case "local":
 		err = os.MkdirAll(c.Path, 0755)
@@ -137,6 +150,14 @@ func (o *ObjectStorage) GetUrl(ctx context.Context, dir, filename string, urlExp
 
 		if err != nil {
 			return nil, err
+		}
+
+		// One more patch is needed for docker to swap out the endpoint for CDN endpoint
+		//
+		// The NGINX proxy layer will then swap the CDN endpoint for endpoint again in its X-Forwarded headers
+		if strings.HasPrefix(o.c.CdnEndpoint, "$DOCKER:") {
+			p.Scheme = "http"
+			p.Host = strings.SplitN(o.c.Endpoint, ":", 1)[0]
 		}
 
 		return p, nil
