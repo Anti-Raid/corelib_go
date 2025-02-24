@@ -6,12 +6,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Anti-Raid/corelib_go/config"
+	"github.com/infinitybotlist/eureka/proxy"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -47,6 +50,8 @@ func New(c *config.ObjectStorageConfig) (o *ObjectStorage, err error) {
 		o.cdnMinio, err = minio.New(c.CdnEndpoint, &minio.Options{
 			Creds:  credentials.NewStaticV4(c.AccessKey, c.SecretKey, ""),
 			Secure: c.CdnSecure,
+			Transport: proxy.NewHostRewriter(strings.Replace(c.Endpoint, "http://", "", 1), http.DefaultTransport, func(s string) {
+			}),
 		})
 
 		if err != nil {
