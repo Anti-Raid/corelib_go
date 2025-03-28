@@ -149,7 +149,7 @@ func (o *ObjectStorage) Save(ctx context.Context, bucketName, dir, filename stri
 }
 
 // Returns the url to the file
-func (o *ObjectStorage) GetUrl(ctx context.Context, bucketName, dir, filename string, urlExpiry time.Duration) (*url.URL, error) {
+func (o *ObjectStorage) GetUrl(ctx context.Context, bucketName, dir, filename string, urlExpiry time.Duration, internal bool) (*url.URL, error) {
 	if err := o.ensureBucketExists(ctx, bucketName); err != nil {
 		return nil, err
 	}
@@ -177,18 +177,28 @@ func (o *ObjectStorage) GetUrl(ctx context.Context, bucketName, dir, filename st
 			path = dir + "/" + filename
 		}
 
-		p, err := o.cdnMinio.PresignedGetObject(ctx, o.c.BasePath+bucketName, path, urlExpiry, nil)
+		var p *url.URL
+		var err error
+		if internal {
+			p, err = o.minio.PresignedGetObject(ctx, o.c.BasePath+bucketName, path, urlExpiry, nil)
 
-		if err != nil {
-			return nil, err
-		}
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			p, err = o.cdnMinio.PresignedGetObject(ctx, o.c.BasePath+bucketName, path, urlExpiry, nil)
 
-		// One more patch is needed for docker to swap out the endpoint for CDN endpoint
-		//
-		// The NGINX proxy layer will then swap the CDN endpoint for endpoint again in its X-Forwarded headers
-		if strings.HasPrefix(o.c.CdnEndpoint, "$DOCKER:") {
-			p.Scheme = "http"
-			p.Host = strings.TrimPrefix(o.c.CdnEndpoint, "$DOCKER:")
+			if err != nil {
+				return nil, err
+			}
+
+			// One more patch is needed for docker to swap out the endpoint for CDN endpoint
+			//
+			// The NGINX proxy layer will then swap the CDN endpoint for endpoint again in its X-Forwarded headers
+			if strings.HasPrefix(o.c.CdnEndpoint, "$DOCKER:") {
+				p.Scheme = "http"
+				p.Host = strings.TrimPrefix(o.c.CdnEndpoint, "$DOCKER:")
+			}
 		}
 
 		return p, nil
